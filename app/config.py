@@ -1,0 +1,27 @@
+"""应用配置。"""
+
+import os
+
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen-plus")
+
+JWT_SECRET = os.getenv(
+    "JWT_SECRET",
+    "please-change-this-jwt-secret-key-at-least-32-chars",
+)
+JWT_ACCESS_EXPIRATION_SECONDS = int(os.getenv("JWT_ACCESS_EXPIRATION_SECONDS", "900"))
+JWT_ACCESS_BLACKLIST_ENABLED = os.getenv("JWT_ACCESS_BLACKLIST_ENABLED", "true").lower() == "true"
+
+MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER", "root")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "root")
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "test1")
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}?charset=utf8mb4",
+)
+
+KNOWLEDGE_DIR = os.getenv("KNOWLEDGE_DIR", "data/knowledge")
+RAG_VECTOR_TOP_K = int(os.getenv("RAG_VECTOR_TOP_K", "3"))

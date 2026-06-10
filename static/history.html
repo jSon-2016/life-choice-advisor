@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>历史报告 — Life Choice Advisor</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a href="/" class="logo">Life <span>Choice</span> Advisor</a>
+      <nav>
+        <a href="/gaokao">高考志愿</a>
+        <a href="/career">职业选择</a>
+        <a href="/history" class="active">历史报告</a>
+        <span id="user-info" class="user-info"></span>
+        <a href="#" id="nav-logout" onclick="logout(); return false;">登出</a>
+      </nav>
+    </header>
+
+    <div class="card">
+      <h2>我的报告</h2>
+      <div id="status" class="status-bar info hidden"></div>
+      <ul id="report-list" class="report-list"></ul>
+    </div>
+
+    <div id="detail" class="card hidden"></div>
+  </div>
+  <script src="/static/js/common.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error("auth");
+
+    const listEl = document.getElementById("report-list");
+    const detailEl = document.getElementById("detail");
+    const status = document.getElementById("status");
+
+    async function loadReports() {
+      try {
+        const reports = await api("/api/reports");
+        if (!reports.length) {
+          listEl.innerHTML = "<li style='cursor:default;color:var(--muted)'>暂无报告，先去填写问卷吧。</li>";
+          return;
+        }
+        listEl.innerHTML = reports.map((r) => {
+          const tag = r.reportType === "gaokao"
+            ? '<span class="tag tag-gaokao">高考</span>'
+            : '<span class="tag tag-career">职业</span>';
+          const date = new Date(r.createdAt).toLocaleString("zh-CN");
+          return `<li data-id="${r.reportId}">
+            ${tag}<strong>${r.title || "未命名报告"}</strong>
+            <div class="meta">${date} · ${(r.summary || "").slice(0, 80)}</div>
+          </li>`;
+        }).join("");
+
+        listEl.querySelectorAll("li[data-id]").forEach((li) => {
+          li.addEventListener("click", () => loadDetail(li.dataset.id));
+        });
+      } catch (e) {
+        showStatus(status, e.message, "error");
+      }
+    }
+
+    async function loadDetail(id) {
+      try {
+        const data = await api(`/api/reports/${id}`);
+        detailEl.classList.remove("hidden");
+        const result = data.resultJson || data.result_json || {};
+        result.reportId = data.reportId || data.report_id;
+        renderReport(detailEl, result);
+        detailEl.scrollIntoView({ behavior: "smooth" });
+      } catch (e) {
+        showStatus(status, e.message, "error");
+      }
+    }
+
+    loadReports();
+  </script>
+</body>
+</html>

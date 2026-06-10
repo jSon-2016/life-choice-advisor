@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Life Choice Advisor — 人生选择顾问</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a href="/" class="logo">Life <span>Choice</span> Advisor</a>
+      <nav>
+        <a href="/gaokao">高考志愿</a>
+        <a href="/career">职业选择</a>
+        <a href="/history">历史报告</a>
+        <span id="user-info" class="user-info"></span>
+        <a href="#" id="nav-logout" class="hidden" onclick="logout(); return false;">登出</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Multi-Agent 人生选择顾问</h1>
+      <p>多位 AI 专家并行分析、辩论协调，结合院校/专业 RAG 知识库，为高考志愿与职业选择提供个性化建议。</p>
+    </section>
+
+    <div id="login-section" class="card login-box">
+      <h2>登录</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:16px;">
+        测试账号：user1 / vip01 / admin01，密码 123456
+      </p>
+      <div id="login-status" class="status-bar info hidden"></div>
+      <label>用户 ID</label>
+      <input id="userId" type="text" placeholder="user1" value="user1">
+      <label>密码</label>
+      <input id="password" type="password" placeholder="123456" value="123456">
+      <button class="btn btn-primary" style="width:100%" id="login-btn">登录</button>
+    </div>
+
+    <div id="main-section" class="hidden">
+      <div class="cards-row">
+        <div class="feature-card">
+          <h3>🎓 高考志愿填报</h3>
+          <p>根据分数、位次、兴趣、性格、心理素质，Multi-Agent 给出冲稳保院校与专业建议。</p>
+          <a href="/gaokao" class="btn btn-primary">开始问卷</a>
+        </div>
+        <div class="feature-card">
+          <h3>💼 职业选择规划</h3>
+          <p>结合专业背景、能力测评、心理评估，推荐行业、岗位与发展路径。</p>
+          <a href="/career" class="btn btn-primary">开始问卷</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="/static/js/common.js"></script>
+  <script>
+    const loginStatus = document.getElementById("login-status");
+    const loginSection = document.getElementById("login-section");
+    const mainSection = document.getElementById("main-section");
+
+    if (getToken()) {
+      loginSection.classList.add("hidden");
+      mainSection.classList.remove("hidden");
+    }
+
+    document.getElementById("login-btn").addEventListener("click", async () => {
+      try {
+        await login(document.getElementById("userId").value, document.getElementById("password").value);
+        showStatus(loginStatus, "登录成功", "success");
+        loginSection.classList.add("hidden");
+        mainSection.classList.remove("hidden");
+        updateNavAuth();
+      } catch (e) {
+        showStatus(loginStatus, e.message, "error");
+      }
+    });
+  </script>
+</body>
+</html>
