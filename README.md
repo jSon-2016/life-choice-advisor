@@ -98,6 +98,8 @@ python examples/demo_gaokao.py
 python examples/demo_career.py
 ```
 
-## 免责声明
+## 使用说明
 
-AI 生成内容仅供参考，不构成正式志愿或职业咨询建议。
+本系统为 **智能辅助决策工具**，通过 Multi-Agent 协作与 RAG 知识库，为用户生成个性化分析报告。
+
+报告内容供决策参考，填报志愿或职业选择时，请结合官方政策、院校招生简章及专业人士意见综合判断。
