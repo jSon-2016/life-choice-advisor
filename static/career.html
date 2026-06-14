@@ -25,15 +25,15 @@
         <div class="grid-2">
           <div>
             <label>学历 *</label>
-            <input name="education_level" required placeholder="本科">
+            <input name="education_level" required placeholder="本科" value="本科">
           </div>
           <div>
             <label>毕业院校 *</label>
-            <input name="university" required placeholder="华南理工大学">
+            <input name="university" required placeholder="华南理工大学" value="华南理工大学">
           </div>
           <div>
             <label>专业 *</label>
-            <input name="major" required placeholder="软件工程">
+            <input name="major" required placeholder="软件工程" value="软件工程">
           </div>
           <div>
             <label>毕业年份</label>
@@ -41,7 +41,7 @@
           </div>
           <div>
             <label>成绩水平</label>
-            <input name="gpa_level" placeholder="良好">
+            <input name="gpa_level" placeholder="良好" value="良好">
           </div>
         </div>
       </div>
@@ -49,39 +49,43 @@
       <div class="card">
         <h2>经历与技能</h2>
         <label>实习经历（每行一条）</label>
-        <textarea name="internship_experience" placeholder="某互联网公司后端实习 3 个月"></textarea>
+        <textarea name="internship_experience" placeholder="某互联网公司后端实习 3 个月">某互联网公司 Java 后端实习 3 个月</textarea>
         <label>项目经历（每行一条）</label>
-        <textarea name="project_experience"></textarea>
+        <textarea name="project_experience">校园二手交易平台
+RAG 问答小项目</textarea>
         <label>技能（逗号分隔）</label>
-        <input name="skills" placeholder="Java, Python, MySQL">
+        <input name="skills" placeholder="Java, Python, MySQL" value="Java, Python, MySQL, Spring Boot">
       </div>
 
       <div class="card">
         <h2>测评与偏好</h2>
         <label>性格特点（逗号分隔）</label>
-        <input name="personality_traits" placeholder="细致, 自驱力强">
+        <input name="personality_traits" placeholder="细致, 自驱力强" value="细致, 偏内向, 自驱力强">
         <label>MBTI</label>
-        <input name="mbti" placeholder="ISTJ">
+        <input name="mbti" placeholder="ISTJ" value="ISTJ">
         <label>价值观（逗号分隔）</label>
-        <input name="values" placeholder="技术成长, 稳定, 合理薪资">
+        <input name="values" placeholder="技术成长, 稳定, 合理薪资" value="技术成长, 工作稳定, 合理薪资">
         <label>心理素质测评摘要</label>
-        <textarea name="psychological_assessment"></textarea>
+        <textarea name="psychological_assessment">情绪较稳定，面对不确定性时会焦虑，偏好有明确目标的任务</textarea>
         <label>职业能力测评得分（格式：分析力:88, 沟通力:62）</label>
-        <input name="career_aptitude_scores" placeholder="分析力:88, 沟通力:62, 执行力:85">
+        <input name="career_aptitude_scores" placeholder="分析力:88, 沟通力:62, 执行力:85" value="分析力:88, 沟通力:62, 执行力:85, 创造力:70, 领导力:55">
         <label>意向城市（逗号分隔）</label>
-        <input name="preferred_cities" placeholder="广州, 深圳">
+        <input name="preferred_cities" placeholder="广州, 深圳" value="广州, 深圳">
         <label>薪资期望</label>
-        <input name="salary_expectation" placeholder="应届 12-18K">
+        <input name="salary_expectation" placeholder="应届 12-18K" value="应届 12-18K">
         <label>工作生活平衡期望</label>
-        <input name="work_life_balance" placeholder="可接受适度加班">
+        <input name="work_life_balance" placeholder="可接受适度加班" value="可接受适度加班，不希望 996">
         <label>不想进入的行业（逗号分隔）</label>
-        <input name="excluded_industries">
+        <input name="excluded_industries" value="传统销售, 纯体力岗位">
         <label>其他补充</label>
         <textarea name="extra_notes"></textarea>
       </div>
 
       <div id="status" class="status-bar info hidden"></div>
-      <button type="submit" class="btn btn-primary" id="submit-btn">提交分析（约 2-4 分钟）</button>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="submit-btn">提交分析（约 2-4 分钟）</button>
+        <button type="button" class="btn btn-secondary hidden" id="cancel-btn">停止分析</button>
+      </div>
     </form>
 
     <div id="result" class="card hidden"></div>
@@ -90,50 +94,32 @@
   <script>
     if (!requireAuth()) throw new Error("auth");
 
-    document.getElementById("career-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById("submit-btn");
-      const status = document.getElementById("status");
-      const result = document.getElementById("result");
-      btn.disabled = true;
-      showStatus(status, "5 位专家 Agent 并行协作 + 辩论协调中，请耐心等待…", "info");
-      result.classList.add("hidden");
-
-      const fd = new FormData(e.target);
-      const payload = {
-        education_level: fd.get("education_level"),
-        university: fd.get("university"),
-        major: fd.get("major"),
-        graduation_year: fd.get("graduation_year") ? parseInt(fd.get("graduation_year"), 10) : null,
-        gpa_level: fd.get("gpa_level") || null,
-        internship_experience: splitList(fd.get("internship_experience").replace(/\n/g, ",")),
-        project_experience: splitList(fd.get("project_experience").replace(/\n/g, ",")),
-        skills: splitList(fd.get("skills")),
-        personality_traits: splitList(fd.get("personality_traits")),
-        mbti: fd.get("mbti") || null,
-        values: splitList(fd.get("values")),
-        psychological_assessment: fd.get("psychological_assessment") || null,
-        career_aptitude_scores: parseScores(fd.get("career_aptitude_scores")),
-        preferred_cities: splitList(fd.get("preferred_cities")),
-        salary_expectation: fd.get("salary_expectation") || null,
-        work_life_balance: fd.get("work_life_balance") || null,
-        excluded_industries: splitList(fd.get("excluded_industries")),
-        extra_notes: fd.get("extra_notes") || null,
-      };
-
-      try {
-        const data = await api("/api/career/advise", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        showStatus(status, "分析完成！报告已保存。", "success");
-        result.classList.remove("hidden");
-        renderReport(result, data);
-      } catch (err) {
-        showStatus(status, err.message, "error");
-      } finally {
-        btn.disabled = false;
-      }
+    bindAdvisoryForm({
+      formId: "career-form",
+      endpoint: "/api/career/advise",
+      runningMessage: "5 位专家 Agent 并行协作 + 辩论协调中，可随时点击「停止分析」取消…",
+      buildPayload(fd) {
+        return {
+          education_level: fd.get("education_level"),
+          university: fd.get("university"),
+          major: fd.get("major"),
+          graduation_year: fd.get("graduation_year") ? parseInt(fd.get("graduation_year"), 10) : null,
+          gpa_level: fd.get("gpa_level") || null,
+          internship_experience: splitList(fd.get("internship_experience").replace(/\n/g, ",")),
+          project_experience: splitList(fd.get("project_experience").replace(/\n/g, ",")),
+          skills: splitList(fd.get("skills")),
+          personality_traits: splitList(fd.get("personality_traits")),
+          mbti: fd.get("mbti") || null,
+          values: splitList(fd.get("values")),
+          psychological_assessment: fd.get("psychological_assessment") || null,
+          career_aptitude_scores: parseScores(fd.get("career_aptitude_scores")),
+          preferred_cities: splitList(fd.get("preferred_cities")),
+          salary_expectation: fd.get("salary_expectation") || null,
+          work_life_balance: fd.get("work_life_balance") || null,
+          excluded_industries: splitList(fd.get("excluded_industries")),
+          extra_notes: fd.get("extra_notes") || null,
+        };
+      },
     });
   </script>
 </body>

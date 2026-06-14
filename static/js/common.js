@@ -1,5 +1,5 @@
 const API_BASE = window.location.origin;
-const TOKEN_KEY = "lca_token";
+const TOKEN_KEY = "lca_token";   // JWT 存 localStorage
 const USER_KEY = "lca_user";
 
 function getToken() {
@@ -29,10 +29,20 @@ function authHeaders() {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...options.headers },
-  });
+  const { signal, ...fetchOptions } = options;
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...fetchOptions,
+      signal,
+      headers: { ...authHeaders(), ...fetchOptions.headers },
+    });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("分析已取消");
+    }
+    throw err;
+  }
   const text = await res.text();
   let data;
   try {
@@ -75,6 +85,63 @@ function showStatus(el, message, type = "info") {
   el.className = `status-bar ${type}`;
   el.textContent = message;
   el.classList.remove("hidden");
+}
+
+function setFormFieldsDisabled(form, disabled) {
+  form.querySelectorAll("input, select, textarea, button").forEach((el) => {
+    if (el.id === "cancel-btn") {
+      el.disabled = false;
+      return;
+    }
+    el.disabled = disabled;
+  });
+}
+
+function bindAdvisoryForm({ formId, endpoint, buildPayload, runningMessage }) {
+  /** 问卷提交通用逻辑：调 API → 展示报告 → 支持 AbortController 停止分析 */
+  const form = document.getElementById(formId);
+  const submitBtn = document.getElementById("submit-btn");
+  const cancelBtn = document.getElementById("cancel-btn");
+  const status = document.getElementById("status");
+  const result = document.getElementById("result");
+  let abortController = null;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    abortController = new AbortController();
+    submitBtn.disabled = true;
+    cancelBtn.classList.remove("hidden");
+    setFormFieldsDisabled(form, true);
+    showStatus(status, runningMessage, "info");
+    result.classList.add("hidden");
+
+    try {
+      const data = await api(endpoint, {
+        method: "POST",
+        body: JSON.stringify(buildPayload(new FormData(form))),
+        signal: abortController.signal,
+      });
+      showStatus(status, "分析完成！报告已保存。", "success");
+      result.classList.remove("hidden");
+      renderReport(result, data);
+    } catch (err) {
+      const cancelled = err.message === "分析已取消";
+      showStatus(status, err.message, cancelled ? "info" : "error");
+    } finally {
+      abortController = null;
+      submitBtn.disabled = false;
+      cancelBtn.classList.add("hidden");
+      setFormFieldsDisabled(form, false);
+      submitBtn.disabled = false;
+    }
+  });
+
+  cancelBtn.addEventListener("click", () => {
+    if (abortController) {
+      showStatus(status, "正在取消分析…", "info");
+      abortController.abort();
+    }
+  });
 }
 
 function splitList(value) {

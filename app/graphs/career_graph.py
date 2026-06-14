@@ -13,23 +13,28 @@ from app.agents.prompts import (
     ROLE_ADVISOR_PROMPT,
 )
 from app.agents.runner import run_agent, run_agents_parallel
+from app.agents.cancel import check_cancelled
 from app.dto.career import CareerProfile, CareerRecommendation
 from app.dto.gaokao import AgentInsight
 from app.graphs.utils import build_prior_context, extract_json_block
 
 
 class CareerState(TypedDict):
-    profile: dict
-    rag_context: str
-    aptitude_analysis: str
-    psychology_analysis: str
-    industry_analysis: str
-    role_analysis: str
-    debate_transcript: str
-    final_report: str
+    """职业选择工作流状态，结构同 GaokaoState。"""
+
+    profile: dict                  # 用户问卷（CareerProfile.model_dump()）
+    rag_context: str               # RAG 检索到的行业/专业就业知识
+    aptitude_analysis: str         # 阶段1：职业能力测评师
+    psychology_analysis: str         # 阶段1：职场心理顾问
+    industry_analysis: str         # 阶段2：行业趋势分析师
+    role_analysis: str             # 阶段2：岗位路径规划师
+    debate_transcript: str         # 阶段3：辩论 Supervisor
+    final_report: str              # 阶段4：总协调员完整报告
 
 
 def _parallel_phase1(state: CareerState) -> dict:
+    """阶段1：能力测评 + 职场心理并行。"""
+    check_cancelled()
     profile = state["profile"]
     rag = state.get("rag_context", "")
 
@@ -56,6 +61,8 @@ def _parallel_phase1(state: CareerState) -> dict:
 
 
 def _parallel_phase2(state: CareerState) -> dict:
+    """阶段2：行业分析 + 岗位规划并行（依赖阶段1 + RAG）。"""
+    check_cancelled()
     profile = state["profile"]
     prior = build_prior_context([
         ("能力测评", state["aptitude_analysis"]),
@@ -86,6 +93,8 @@ def _parallel_phase2(state: CareerState) -> dict:
 
 
 def _debate_supervisor(state: CareerState) -> dict:
+    """阶段3：Supervisor 协调 4 位专家的分歧。"""
+    check_cancelled()
     prior = build_prior_context([
         ("能力测评", state["aptitude_analysis"]),
         ("职场心理", state["psychology_analysis"]),
@@ -103,6 +112,8 @@ def _debate_supervisor(state: CareerState) -> dict:
 
 
 def _coordinator(state: CareerState) -> dict:
+    """阶段4：总协调员输出最终职业建议报告。"""
+    check_cancelled()
     prior = build_prior_context([
         ("能力测评", state["aptitude_analysis"]),
         ("职场心理", state["psychology_analysis"]),
@@ -124,6 +135,7 @@ def _coordinator(state: CareerState) -> dict:
 
 
 def build_career_graph():
+    """构建职业选择工作流，拓扑与高考志愿相同。"""
     graph = StateGraph(CareerState)
     graph.add_node("parallel_phase1", _parallel_phase1)
     graph.add_node("parallel_phase2", _parallel_phase2)
@@ -149,6 +161,8 @@ def get_career_graph():
 
 
 def run_career_advisory(profile: CareerProfile, *, rag_context: str = "") -> CareerRecommendation:
+    """对外入口：启动 LangGraph → 解析 JSON → 封装 CareerRecommendation。"""
+    check_cancelled()
     graph = get_career_graph()
     result = graph.invoke({"profile": profile.model_dump(), "rag_context": rag_context})
 

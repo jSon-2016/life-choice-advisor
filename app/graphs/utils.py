@@ -17,6 +17,7 @@ def extract_json_block(text: str) -> dict[str, Any]:
 
 
 def build_prior_context(sections: list[tuple[str, str]]) -> str:
+    """把多段专家输出拼成 Markdown，作为下一节点的 prior_context。"""
     lines: list[str] = []
     for title, body in sections:
         if body.strip():

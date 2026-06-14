@@ -12,9 +12,12 @@ from app.service.knowledge_base_loader import KnowledgeBaseLoader
 
 
 class RAGService:
+    """Hybrid RAG：关键词匹配 + DashScope 向量检索，结果注入 Agent prior_context。"""
+
     def __init__(self, loader: KnowledgeBaseLoader) -> None:
         self._loader = loader
         self._vector_store: InMemoryVectorStore | None = None
+        # 无 API Key 时降级为纯关键词检索
         self._vector_available = bool(os.getenv("DASHSCOPE_API_KEY"))
         if self._vector_available:
             self._rebuild_vector_store()
@@ -26,6 +29,7 @@ class RAGService:
         return "\n".join(f"- [{h.category}] {h.content}" for h in hits)
 
     def search_hits(self, question: str, *, category: str | None = None) -> list[KnowledgeEntry]:
+        """混合检索：关键词 + 向量，去重后返回。"""
         if not question or not question.strip():
             return []
         keyword_hits = self._search_keyword(question, category)
@@ -33,6 +37,7 @@ class RAGService:
         return self._dedupe(keyword_hits + vector_hits)
 
     def build_context_for_gaokao(self, profile: dict) -> str:
+        """按省份、科类、分数、兴趣等维度检索 majors/schools，拼成 Markdown 上下文。"""
         queries = [
             profile.get("province", ""),
             profile.get("subject_track", ""),
@@ -53,6 +58,7 @@ class RAGService:
         return "\n".join(lines)
 
     def build_context_for_career(self, profile: dict) -> str:
+        """按专业、院校、技能、意向城市检索 industries/majors。"""
         queries = [
             profile.get("major", ""),
             profile.get("university", ""),
@@ -72,12 +78,14 @@ class RAGService:
         return "\n".join(lines)
 
     def _search_keyword(self, question: str, category: str | None) -> list[KnowledgeEntry]:
+        """关键词包含匹配：question 中出现 keyword 片段即命中。"""
         entries = self._loader.get_entries()
         if category:
             entries = [e for e in entries if e.category == category]
         return [e for e in entries if self._matches(question, e.keyword)]
 
     def _search_vector(self, question: str, category: str | None) -> list[KnowledgeEntry]:
+        """向量语义检索，需 DASHSCOPE_API_KEY。"""
         if not self._vector_available or self._vector_store is None:
             return []
         docs = self._vector_store.similarity_search(question.strip(), k=RAG_VECTOR_TOP_K * 2)

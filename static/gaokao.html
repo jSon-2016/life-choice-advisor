@@ -25,7 +25,7 @@
         <div class="grid-2">
           <div>
             <label>高考省份 *</label>
-            <input name="province" required placeholder="广东">
+            <input name="province" required placeholder="广东" value="广东">
           </div>
           <div>
             <label>高考年份 *</label>
@@ -33,15 +33,15 @@
           </div>
           <div>
             <label>科类/选科 *</label>
-            <input name="subject_track" required placeholder="物理类">
+            <input name="subject_track" required placeholder="物理类" value="物理类">
           </div>
           <div>
             <label>高考总分 *</label>
-            <input name="total_score" type="number" required placeholder="612">
+            <input name="total_score" type="number" required placeholder="612" value="612">
           </div>
           <div>
             <label>全省位次（可选）</label>
-            <input name="rank" type="number" placeholder="8500">
+            <input name="rank" type="number" placeholder="8500" value="8500">
           </div>
         </div>
       </div>
@@ -49,29 +49,32 @@
       <div class="card">
         <h2>兴趣与性格</h2>
         <label>兴趣方向（逗号分隔）</label>
-        <input name="interests" placeholder="编程, 数学, 设计">
+        <input name="interests" placeholder="编程, 数学, 设计" value="编程, 数学, 解决问题">
         <label>性格特点（逗号分隔）</label>
-        <input name="personality_traits" placeholder="逻辑清晰, 偏内向">
+        <input name="personality_traits" placeholder="逻辑清晰, 偏内向" value="逻辑清晰, 偏内向, 喜欢深度思考">
         <label>MBTI（可选）</label>
-        <input name="mbti" placeholder="INTJ">
+        <input name="mbti" placeholder="INTJ" value="INTJ">
         <label>意向地区（逗号分隔）</label>
-        <input name="preferred_regions" placeholder="广州, 深圳, 上海">
+        <input name="preferred_regions" placeholder="广州, 深圳, 上海" value="广州, 深圳, 上海">
         <label>不想学的专业（逗号分隔）</label>
-        <input name="excluded_majors" placeholder="医学, 土木">
+        <input name="excluded_majors" placeholder="医学, 土木" value="医学, 土木">
       </div>
 
       <div class="card">
         <h2>心理与家庭</h2>
         <label>心理素质说明</label>
-        <textarea name="psychological_notes" placeholder="抗压能力、社交偏好、适应新环境能力…"></textarea>
+        <textarea name="psychological_notes" placeholder="抗压能力、社交偏好、适应新环境能力…">抗压能力中等，对新环境适应较快，不太喜欢频繁社交</textarea>
         <label>家庭约束</label>
-        <textarea name="family_constraints" placeholder="经济、地域、父母期望…"></textarea>
+        <textarea name="family_constraints" placeholder="经济、地域、父母期望…">希望留在华南，学费可接受公办本科</textarea>
         <label>其他补充</label>
         <textarea name="extra_notes"></textarea>
       </div>
 
       <div id="status" class="status-bar info hidden"></div>
-      <button type="submit" class="btn btn-primary" id="submit-btn">提交分析（约 2-4 分钟）</button>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="submit-btn">提交分析（约 2-4 分钟）</button>
+        <button type="button" class="btn btn-secondary hidden" id="cancel-btn">停止分析</button>
+      </div>
     </form>
 
     <div id="result" class="card hidden"></div>
@@ -80,45 +83,27 @@
   <script>
     if (!requireAuth()) throw new Error("auth");
 
-    document.getElementById("gaokao-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById("submit-btn");
-      const status = document.getElementById("status");
-      const result = document.getElementById("result");
-      btn.disabled = true;
-      showStatus(status, "5 位专家 Agent 并行协作 + 辩论协调中，请耐心等待…", "info");
-      result.classList.add("hidden");
-
-      const fd = new FormData(e.target);
-      const payload = {
-        province: fd.get("province"),
-        exam_year: parseInt(fd.get("exam_year"), 10),
-        subject_track: fd.get("subject_track"),
-        total_score: parseInt(fd.get("total_score"), 10),
-        rank: fd.get("rank") ? parseInt(fd.get("rank"), 10) : null,
-        interests: splitList(fd.get("interests")),
-        personality_traits: splitList(fd.get("personality_traits")),
-        mbti: fd.get("mbti") || null,
-        preferred_regions: splitList(fd.get("preferred_regions")),
-        excluded_majors: splitList(fd.get("excluded_majors")),
-        psychological_notes: fd.get("psychological_notes") || null,
-        family_constraints: fd.get("family_constraints") || null,
-        extra_notes: fd.get("extra_notes") || null,
-      };
-
-      try {
-        const data = await api("/api/gaokao/advise", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        showStatus(status, "分析完成！报告已保存。", "success");
-        result.classList.remove("hidden");
-        renderReport(result, data);
-      } catch (err) {
-        showStatus(status, err.message, "error");
-      } finally {
-        btn.disabled = false;
-      }
+    bindAdvisoryForm({
+      formId: "gaokao-form",
+      endpoint: "/api/gaokao/advise",
+      runningMessage: "5 位专家 Agent 并行协作 + 辩论协调中，可随时点击「停止分析」取消…",
+      buildPayload(fd) {
+        return {
+          province: fd.get("province"),
+          exam_year: parseInt(fd.get("exam_year"), 10),
+          subject_track: fd.get("subject_track"),
+          total_score: parseInt(fd.get("total_score"), 10),
+          rank: fd.get("rank") ? parseInt(fd.get("rank"), 10) : null,
+          interests: splitList(fd.get("interests")),
+          personality_traits: splitList(fd.get("personality_traits")),
+          mbti: fd.get("mbti") || null,
+          preferred_regions: splitList(fd.get("preferred_regions")),
+          excluded_majors: splitList(fd.get("excluded_majors")),
+          psychological_notes: fd.get("psychological_notes") || null,
+          family_constraints: fd.get("family_constraints") || null,
+          extra_notes: fd.get("extra_notes") || null,
+        };
+      },
     });
   </script>
 </body>

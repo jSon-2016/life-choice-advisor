@@ -1,4 +1,12 @@
-"""Life Choice Advisor — Multi-Agent 人生选择顾问。"""
+"""Life Choice Advisor — 应用入口。
+
+路由结构：
+  /api/auth/*     登录 / 登出
+  /api/gaokao/*   高考志愿
+  /api/career/*   职业选择
+  /api/reports/*  历史报告
+  / /gaokao /career /history  静态问卷页面
+"""
 
 from pathlib import Path
 
@@ -45,6 +53,7 @@ if STATIC_DIR.exists():
 
 @app.on_event("startup")
 def init_db() -> None:
+    """首次启动自动建表（t_advisory_report）。"""
     Base.metadata.create_all(bind=engine)
 
 

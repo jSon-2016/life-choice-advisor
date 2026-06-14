@@ -81,6 +81,20 @@ textarea { min-height: 80px; resize: vertical; }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btn-secondary {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { color: var(--text); border-color: var(--muted); }
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .hero { text-align: center; padding: 48px 0; }
 .hero h1 { font-size: 2rem; margin-bottom: 12px; }
 .hero p { color: var(--muted); max-width: 560px; margin: 0 auto 32px; }
