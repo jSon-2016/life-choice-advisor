@@ -25,3 +25,13 @@ DATABASE_URL = os.getenv(
 
 KNOWLEDGE_DIR = os.getenv("KNOWLEDGE_DIR", "data/knowledge")
 RAG_VECTOR_TOP_K = int(os.getenv("RAG_VECTOR_TOP_K", "3"))
+RAG_CHROMA_PATH = os.getenv("RAG_CHROMA_PATH", "data/chroma")
+RAG_RECALL_TOP_K = int(os.getenv("RAG_RECALL_TOP_K", "10"))
+RAG_RERANK_TOP_N = int(os.getenv("RAG_RERANK_TOP_N", "5"))
+RAG_RERANK_THRESHOLD = float(os.getenv("RAG_RERANK_THRESHOLD", "0.35"))
+RAG_RRF_K = int(os.getenv("RAG_RRF_K", "60"))
+RAG_RERANK_MODEL = os.getenv("RAG_RERANK_MODEL", "gte-rerank")
+
+REPORT_CHUNK_SIZE = int(os.getenv("REPORT_CHUNK_SIZE", "1200"))
+REPORT_CHUNK_OVERLAP = int(os.getenv("REPORT_CHUNK_OVERLAP", "250"))
+REPORT_MAX_UPLOAD_MB = int(os.getenv("REPORT_MAX_UPLOAD_MB", "15"))

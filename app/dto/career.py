@@ -52,3 +52,16 @@ class CareerRecommendation(BaseModel):
     agent_insights: list[AgentInsight] = Field(default_factory=list)
     full_report: str
     report_id: str | None = None
+
+
+class CareerStructuredOutput(BaseModel):
+    """协调员 Structured Output schema。"""
+
+    summary: str = Field(..., description="200 字以内综合摘要")
+    recommended_industries: list[str] = Field(default_factory=list, description="推荐行业及理由")
+    recommended_roles: list[str] = Field(default_factory=list, description="推荐岗位类型")
+    alternative_paths: list[str] = Field(default_factory=list, description="备选路径")
+    skill_gaps: list[str] = Field(default_factory=list, description="能力短板")
+    development_plan: list[str] = Field(default_factory=list, description="3-6 个月行动计划")
+    risk_warnings: list[str] = Field(default_factory=list, description="风险提醒")
+    full_report: str = Field(..., description="完整 Markdown 报告正文")

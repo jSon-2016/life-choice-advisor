@@ -52,3 +52,17 @@ class GaokaoRecommendation(BaseModel):
     agent_insights: list[AgentInsight] = Field(default_factory=list, description="各专家详细分析")
     full_report: str = Field(..., description="协调员整合后的完整 Markdown 报告")
     report_id: str | None = Field(None, description="保存到 MySQL 后的报告 ID")
+
+
+class GaokaoStructuredOutput(BaseModel):
+    """协调员 Structured Output schema（替代 Markdown 末尾 JSON 块）。"""
+
+    summary: str = Field(..., description="200 字以内综合摘要")
+    rush_schools: list[str] = Field(default_factory=list, description="冲档院校+专业")
+    stable_schools: list[str] = Field(default_factory=list, description="稳档院校+专业")
+    safe_schools: list[str] = Field(default_factory=list, description="保档院校+专业")
+    recommended_majors: list[str] = Field(default_factory=list, description="推荐专业及理由关键词")
+    avoid_majors: list[str] = Field(default_factory=list, description="不建议的专业方向")
+    action_plan: list[str] = Field(default_factory=list, description="3-5 步行动建议")
+    risk_warnings: list[str] = Field(default_factory=list, description="风险提醒")
+    full_report: str = Field(..., description="面向考生与家长的完整 Markdown 报告正文")

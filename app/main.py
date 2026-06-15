@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -23,8 +25,13 @@ from app.controller.auth_controller import router as auth_router
 from app.controller.career_controller import router as career_router
 from app.controller.gaokao_controller import router as gaokao_router
 from app.controller.report_controller import router as report_router
+from app.controller.report_import_controller import router as report_import_router
 from app.db.session import engine
 from app.db.models import Base
+from app.deps import knowledge_loader, rag_service
+from app.observability.tracing import setup_logging
+
+setup_logging()
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 
@@ -46,6 +53,7 @@ app.include_router(auth_router)
 app.include_router(gaokao_router)
 app.include_router(career_router)
 app.include_router(report_router)
+app.include_router(report_import_router)
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -58,8 +66,13 @@ def init_db() -> None:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict:
+    return {
+        "status": "ok",
+        "knowledge_entries": len(knowledge_loader.get_entries()),
+        "vector_store": rag_service._vector_store.available,
+        "dashscope_configured": bool(os.getenv("DASHSCOPE_API_KEY")),
+    }
 
 
 @app.get("/")

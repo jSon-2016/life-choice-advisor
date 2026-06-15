@@ -19,9 +19,17 @@
       </nav>
     </header>
 
+    <div class="card" id="import-card">
+      <h2>导入心理/职业测评报告（推荐）</h2>
+      <p class="hint">上传 PDF 或图片，自动 OCR + 语义重叠分块，无需重复填写测评与性格项。</p>
+      <input type="file" id="report-file" accept=".pdf,image/png,image/jpeg,image/webp,image/bmp">
+      <button type="button" class="btn btn-secondary" id="import-btn">解析报告</button>
+      <div id="import-preview" class="hidden"></div>
+    </div>
+
     <form id="career-form">
-      <div class="card">
-        <h2>教育背景</h2>
+      <div class="card" id="edu-card">
+        <h2>教育背景（报告未识别时需补充）</h2>
         <div class="grid-2">
           <div>
             <label>学历 *</label>
@@ -57,8 +65,8 @@ RAG 问答小项目</textarea>
         <input name="skills" placeholder="Java, Python, MySQL" value="Java, Python, MySQL, Spring Boot">
       </div>
 
-      <div class="card">
-        <h2>测评与偏好</h2>
+      <div class="card" id="assessment-card">
+        <h2>测评与偏好（可导入报告后跳过）</h2>
         <label>性格特点（逗号分隔）</label>
         <input name="personality_traits" placeholder="细致, 自驱力强" value="细致, 偏内向, 自驱力强">
         <label>MBTI</label>
@@ -81,6 +89,10 @@ RAG 问答小项目</textarea>
         <textarea name="extra_notes"></textarea>
       </div>
 
+      <div id="progress-panel" class="progress-panel hidden">
+        <h3>分析进度</h3>
+        <ul id="progress-steps" class="progress-steps"></ul>
+      </div>
       <div id="status" class="status-bar info hidden"></div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="submit-btn">提交分析（约 2-4 分钟）</button>
@@ -94,9 +106,43 @@ RAG 问答小项目</textarea>
   <script>
     if (!requireAuth()) throw new Error("auth");
 
+    let importedReportContext = null;
+
+    bindReportImport({
+      fileInputId: "report-file",
+      buttonId: "import-btn",
+      previewId: "import-preview",
+      advisoryType: "career",
+      hideSelectors: ["#assessment-card"],
+      onParsed(data) {
+        importedReportContext = data.report_context;
+        const p = data.career_profile || data.careerProfile;
+        if (!p) return;
+        const form = document.getElementById("career-form");
+        setInputValue(form, "education_level", p.education_level);
+        setInputValue(form, "university", p.university);
+        setInputValue(form, "major", p.major);
+        setInputValue(form, "graduation_year", p.graduation_year);
+        setInputValue(form, "skills", p.skills);
+        setInputValue(form, "personality_traits", p.personality_traits);
+        setInputValue(form, "mbti", p.mbti);
+        setInputValue(form, "values", p.values);
+        setInputValue(form, "psychological_assessment", p.psychological_assessment);
+        if (p.career_aptitude_scores) {
+          const scores = Object.entries(p.career_aptitude_scores)
+            .map(([k, v]) => `${k}:${v}`)
+            .join(", ");
+          setInputValue(form, "career_aptitude_scores", scores);
+        }
+        setInputValue(form, "preferred_cities", p.preferred_cities);
+        setInputValue(form, "extra_notes", p.extra_notes);
+      },
+    });
+
     bindAdvisoryForm({
       formId: "career-form",
       endpoint: "/api/career/advise",
+      getImportContext: () => importedReportContext,
       runningMessage: "5 位专家 Agent 并行协作 + 辩论协调中，可随时点击「停止分析」取消…",
       buildPayload(fd) {
         return {

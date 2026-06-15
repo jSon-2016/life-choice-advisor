@@ -19,9 +19,18 @@
       </nav>
     </header>
 
+    <div class="card" id="import-card">
+      <h2>导入心理测评报告（推荐）</h2>
+      <p class="hint">上传 PDF 或图片（含表格、参考标准）。系统 OCR + 语义重叠分块解析，无需重复填写下方心理测评项。</p>
+      <input type="file" id="report-file" accept=".pdf,image/png,image/jpeg,image/webp,image/bmp">
+      <button type="button" class="btn btn-secondary" id="import-btn">解析报告</button>
+      <div id="import-preview" class="hidden"></div>
+    </div>
+
     <form id="gaokao-form">
-      <div class="card">
-        <h2>基本信息</h2>
+      <div class="card" id="basic-card">
+        <h2>高考基本信息</h2>
+        <p class="hint">若测评报告已含分数/省份会自动填充；否则请补充以下必填项。</p>
         <div class="grid-2">
           <div>
             <label>高考省份 *</label>
@@ -46,8 +55,8 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2>兴趣与性格</h2>
+      <div class="card" id="psych-card">
+        <h2>兴趣与性格（可导入报告后跳过）</h2>
         <label>兴趣方向（逗号分隔）</label>
         <input name="interests" placeholder="编程, 数学, 设计" value="编程, 数学, 解决问题">
         <label>性格特点（逗号分隔）</label>
@@ -70,6 +79,10 @@
         <textarea name="extra_notes"></textarea>
       </div>
 
+      <div id="progress-panel" class="progress-panel hidden">
+        <h3>分析进度</h3>
+        <ul id="progress-steps" class="progress-steps"></ul>
+      </div>
       <div id="status" class="status-bar info hidden"></div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="submit-btn">提交分析（约 2-4 分钟）</button>
@@ -83,9 +96,37 @@
   <script>
     if (!requireAuth()) throw new Error("auth");
 
+    let importedReportContext = null;
+
+    bindReportImport({
+      fileInputId: "report-file",
+      buttonId: "import-btn",
+      previewId: "import-preview",
+      advisoryType: "gaokao",
+      hideSelectors: ["#psych-card"],
+      onParsed(data) {
+        importedReportContext = data.report_context;
+        const p = data.gaokao_profile || data.gaokaoProfile;
+        if (!p) return;
+        const form = document.getElementById("gaokao-form");
+        setInputValue(form, "province", p.province);
+        setInputValue(form, "exam_year", p.exam_year);
+        setInputValue(form, "subject_track", p.subject_track);
+        setInputValue(form, "total_score", p.total_score);
+        setInputValue(form, "rank", p.rank);
+        setInputValue(form, "interests", p.interests);
+        setInputValue(form, "personality_traits", p.personality_traits);
+        setInputValue(form, "mbti", p.mbti);
+        setInputValue(form, "preferred_regions", p.preferred_regions);
+        setInputValue(form, "psychological_notes", p.psychological_notes);
+        setInputValue(form, "extra_notes", p.extra_notes);
+      },
+    });
+
     bindAdvisoryForm({
       formId: "gaokao-form",
       endpoint: "/api/gaokao/advise",
+      getImportContext: () => importedReportContext,
       runningMessage: "5 位专家 Agent 并行协作 + 辩论协调中，可随时点击「停止分析」取消…",
       buildPayload(fd) {
         return {

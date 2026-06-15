@@ -13,9 +13,13 @@ from app.agents.prompts import (
     SCHOOL_ADVISOR_PROMPT,
 )
 from app.agents.runner import run_agent, run_agents_parallel
+from app.agents.tool_runner import run_agent_with_tools, run_structured_coordinator
 from app.agents.cancel import check_cancelled
-from app.dto.gaokao import AgentInsight, GaokaoProfile, GaokaoRecommendation
-from app.graphs.utils import build_prior_context, extract_json_block
+from app.dto.gaokao import AgentInsight, GaokaoProfile, GaokaoRecommendation, GaokaoStructuredOutput
+from app.graphs.utils import append_structured_summary, build_prior_context
+from app.graphs.context_helpers import imported_prefix, merge_context
+from app.graphs.progress_helpers import with_node_progress
+from app.tools.registry import get_gaokao_tools
 
 
 class GaokaoState(TypedDict):
@@ -26,19 +30,21 @@ class GaokaoState(TypedDict):
 
     profile: dict                  # 用户问卷（GaokaoProfile.model_dump()）
     rag_context: str               # RAG 检索到的院校/专业知识
+    imported_report_context: str   # 导入的测评报告（语义分块）
     score_analysis: str            # 阶段1：分数定位分析师
     personality_analysis: str      # 阶段1：心理与兴趣顾问
     major_recommendations: str     # 阶段2：专业规划专家
     school_recommendations: str    # 阶段2：院校填报专家
     debate_transcript: str         # 阶段3：辩论 Supervisor
     final_report: str              # 阶段4：总协调员完整报告
+    structured_output: dict        # 阶段4：Pydantic Structured Output（供 API 直接使用）
 
 
 def _parallel_phase1(state: GaokaoState) -> dict:
     """阶段1：分数分析师 + 心理顾问并行（互不依赖，可同时调 LLM）。"""
     check_cancelled()
     profile = state["profile"]
-    rag = state.get("rag_context", "")
+    rag = merge_context(imported_prefix(state), state.get("rag_context", ""))
 
     def score_task():
         return run_agent(
@@ -73,22 +79,26 @@ def _parallel_phase2(state: GaokaoState) -> dict:
         ("心理与兴趣分析", state["personality_analysis"]),
     ])
     # RAG 知识库放在最前面，保证事实性信息优先
-    prior = f"{state.get('rag_context', '')}\n\n{prior}".strip()
+    prior = merge_context(imported_prefix(state), state.get("rag_context", ""), prior)
+
+    gaokao_tools = get_gaokao_tools()
 
     def major_task():
-        return run_agent(
+        return run_agent_with_tools(
             role="专业规划专家",
             system_prompt=MAJOR_ADVISOR_PROMPT,
             user_payload=profile,
             prior_context=prior,
+            tools=gaokao_tools,
         )
 
     def school_task():
-        return run_agent(
+        return run_agent_with_tools(
             role="院校填报专家",
             system_prompt=SCHOOL_ADVISOR_PROMPT,
             user_payload=profile,
             prior_context=prior,
+            tools=gaokao_tools,
         )
 
     results = run_agents_parallel([
@@ -118,7 +128,7 @@ def _debate_supervisor(state: GaokaoState) -> dict:
 
 
 def _coordinator(state: GaokaoState) -> dict:
-    """阶段4：总协调员汇总全部信息，输出 Markdown + 末尾 JSON 结构化字段。"""
+    """阶段4：总协调员 Structured Output，消除 JSON 解析不稳定。"""
     check_cancelled()
     prior = build_prior_context([
         ("分数定位", state["score_analysis"]),
@@ -127,26 +137,28 @@ def _coordinator(state: GaokaoState) -> dict:
         ("院校建议", state["school_recommendations"]),
         ("辩论结论", state["debate_transcript"]),
     ])
-    rag = state.get("rag_context", "")
+    rag = merge_context(imported_prefix(state), state.get("rag_context", ""))
     if rag:
-        prior = f"{rag}\n\n{prior}"
-    content = run_agent(
+        prior = merge_context(rag, prior)
+    structured = run_structured_coordinator(
         role="志愿规划总协调员",
         system_prompt=GAOKAO_COORDINATOR_PROMPT,
         user_payload=state["profile"],
         prior_context=prior,
-        temperature=0.2,
+        schema=GaokaoStructuredOutput,
+        temperature=0.1,
     )
-    return {"final_report": content}
+    content = append_structured_summary(structured.full_report, structured.model_dump())
+    return {"final_report": content, "structured_output": structured.model_dump()}
 
 
 def build_gaokao_graph():
     """构建并编译工作流：phase1 → phase2 → supervisor → coordinator → END。"""
     graph = StateGraph(GaokaoState)
-    graph.add_node("parallel_phase1", _parallel_phase1)
-    graph.add_node("parallel_phase2", _parallel_phase2)
-    graph.add_node("debate_supervisor", _debate_supervisor)
-    graph.add_node("coordinator", _coordinator)
+    graph.add_node("parallel_phase1", with_node_progress("parallel_phase1", _parallel_phase1))
+    graph.add_node("parallel_phase2", with_node_progress("parallel_phase2", _parallel_phase2))
+    graph.add_node("debate_supervisor", with_node_progress("debate_supervisor", _debate_supervisor))
+    graph.add_node("coordinator", with_node_progress("coordinator", _coordinator))
 
     graph.set_entry_point("parallel_phase1")
     graph.add_edge("parallel_phase1", "parallel_phase2")
@@ -166,14 +178,22 @@ def get_gaokao_graph():
     return _gaokao_graph
 
 
-def run_gaokao_advisory(profile: GaokaoProfile, *, rag_context: str = "") -> GaokaoRecommendation:
-    """对外入口：启动 LangGraph → 解析 JSON → 封装 GaokaoRecommendation。"""
+def run_gaokao_advisory(
+    profile: GaokaoProfile,
+    *,
+    rag_context: str = "",
+    imported_report_context: str = "",
+) -> GaokaoRecommendation:
+    """对外入口：启动 LangGraph → Structured Output → 封装 GaokaoRecommendation。"""
     check_cancelled()
     graph = get_gaokao_graph()
-    result = graph.invoke({"profile": profile.model_dump(), "rag_context": rag_context})
+    result = graph.invoke({
+        "profile": profile.model_dump(),
+        "rag_context": rag_context,
+        "imported_report_context": imported_report_context,
+    })
 
-    # 从协调员 Markdown 报告中提取 ```json ... ``` 块
-    parsed = extract_json_block(result["final_report"])
+    parsed = result.get("structured_output") or {}
     insights = [
         AgentInsight(agent="score_analyst", role="分数定位分析师", content=result["score_analysis"]),
         AgentInsight(agent="personality_advisor", role="心理与兴趣顾问", content=result["personality_analysis"]),

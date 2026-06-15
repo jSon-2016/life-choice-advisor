@@ -1,0 +1,5 @@
+{"id": 1, "profile": {"province": "广东", "exam_year": 2026, "subject_track": "物理类", "total_score": 612, "rank": 8500, "preferred_regions": ["广州", "深圳"], "interests": ["编程", "数学"], "personality_traits": ["逻辑清晰"], "excluded_majors": ["医学"]}, "rag_must_hit": ["计算机", "华南"], "expect_keywords": []}
+{"id": 2, "profile": {"province": "广东", "exam_year": 2026, "subject_track": "物理类", "total_score": 580, "interests": ["土木"], "preferred_regions": ["广州"]}, "rag_must_hit": ["土木"], "expect_keywords": []}
+{"id": 3, "profile": {"province": "广东", "exam_year": 2026, "subject_track": "物理类", "total_score": 612, "interests": ["人工智能"], "preferred_regions": ["深圳"]}, "rag_must_hit": ["人工智能", "深圳"], "expect_keywords": []}
+{"id": 4, "profile": {"province": "浙江", "exam_year": 2026, "subject_track": "物理类", "total_score": 650, "interests": ["编程"]}, "rag_must_hit": [], "expect_keywords": [], "expect_low_confidence": true}
+{"id": 5, "profile": {"province": "广东", "exam_year": 2026, "subject_track": "物理类", "total_score": 612, "interests": ["电子信息"], "preferred_regions": ["华南"]}, "rag_must_hit": ["电子信息", "华南理工"], "expect_keywords": []}

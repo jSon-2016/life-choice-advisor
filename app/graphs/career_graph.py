@@ -13,10 +13,14 @@ from app.agents.prompts import (
     ROLE_ADVISOR_PROMPT,
 )
 from app.agents.runner import run_agent, run_agents_parallel
+from app.agents.tool_runner import run_agent_with_tools, run_structured_coordinator
 from app.agents.cancel import check_cancelled
-from app.dto.career import CareerProfile, CareerRecommendation
+from app.dto.career import CareerProfile, CareerRecommendation, CareerStructuredOutput
 from app.dto.gaokao import AgentInsight
-from app.graphs.utils import build_prior_context, extract_json_block
+from app.graphs.utils import append_structured_summary, build_prior_context
+from app.graphs.context_helpers import imported_prefix, merge_context
+from app.graphs.progress_helpers import with_node_progress
+from app.tools.registry import get_career_tools
 
 
 class CareerState(TypedDict):
@@ -24,19 +28,21 @@ class CareerState(TypedDict):
 
     profile: dict                  # 用户问卷（CareerProfile.model_dump()）
     rag_context: str               # RAG 检索到的行业/专业就业知识
+    imported_report_context: str   # 导入的测评报告
     aptitude_analysis: str         # 阶段1：职业能力测评师
     psychology_analysis: str         # 阶段1：职场心理顾问
     industry_analysis: str         # 阶段2：行业趋势分析师
     role_analysis: str             # 阶段2：岗位路径规划师
     debate_transcript: str         # 阶段3：辩论 Supervisor
     final_report: str              # 阶段4：总协调员完整报告
+    structured_output: dict        # 阶段4：Pydantic Structured Output
 
 
 def _parallel_phase1(state: CareerState) -> dict:
     """阶段1：能力测评 + 职场心理并行。"""
     check_cancelled()
     profile = state["profile"]
-    rag = state.get("rag_context", "")
+    rag = merge_context(imported_prefix(state), state.get("rag_context", ""))
 
     def aptitude_task():
         return run_agent(
@@ -68,22 +74,26 @@ def _parallel_phase2(state: CareerState) -> dict:
         ("能力测评", state["aptitude_analysis"]),
         ("职场心理", state["psychology_analysis"]),
     ])
-    prior = f"{state.get('rag_context', '')}\n\n{prior}".strip()
+    prior = merge_context(imported_prefix(state), state.get("rag_context", ""), prior)
+
+    career_tools = get_career_tools()
 
     def industry_task():
-        return run_agent(
+        return run_agent_with_tools(
             role="行业趋势分析师",
             system_prompt=INDUSTRY_ADVISOR_PROMPT,
             user_payload=profile,
             prior_context=prior,
+            tools=career_tools,
         )
 
     def role_task():
-        return run_agent(
+        return run_agent_with_tools(
             role="岗位路径规划师",
             system_prompt=ROLE_ADVISOR_PROMPT,
             user_payload=profile,
             prior_context=prior,
+            tools=career_tools,
         )
 
     return run_agents_parallel([
@@ -112,7 +122,7 @@ def _debate_supervisor(state: CareerState) -> dict:
 
 
 def _coordinator(state: CareerState) -> dict:
-    """阶段4：总协调员输出最终职业建议报告。"""
+    """阶段4：总协调员 Structured Output。"""
     check_cancelled()
     prior = build_prior_context([
         ("能力测评", state["aptitude_analysis"]),
@@ -121,26 +131,28 @@ def _coordinator(state: CareerState) -> dict:
         ("岗位建议", state["role_analysis"]),
         ("辩论结论", state["debate_transcript"]),
     ])
-    rag = state.get("rag_context", "")
+    rag = merge_context(imported_prefix(state), state.get("rag_context", ""))
     if rag:
-        prior = f"{rag}\n\n{prior}"
-    content = run_agent(
+        prior = merge_context(rag, prior)
+    structured = run_structured_coordinator(
         role="生涯规划总协调员",
         system_prompt=CAREER_COORDINATOR_PROMPT,
         user_payload=state["profile"],
         prior_context=prior,
-        temperature=0.2,
+        schema=CareerStructuredOutput,
+        temperature=0.1,
     )
-    return {"final_report": content}
+    content = append_structured_summary(structured.full_report, structured.model_dump())
+    return {"final_report": content, "structured_output": structured.model_dump()}
 
 
 def build_career_graph():
     """构建职业选择工作流，拓扑与高考志愿相同。"""
     graph = StateGraph(CareerState)
-    graph.add_node("parallel_phase1", _parallel_phase1)
-    graph.add_node("parallel_phase2", _parallel_phase2)
-    graph.add_node("debate_supervisor", _debate_supervisor)
-    graph.add_node("coordinator", _coordinator)
+    graph.add_node("parallel_phase1", with_node_progress("parallel_phase1", _parallel_phase1))
+    graph.add_node("parallel_phase2", with_node_progress("parallel_phase2", _parallel_phase2))
+    graph.add_node("debate_supervisor", with_node_progress("debate_supervisor", _debate_supervisor))
+    graph.add_node("coordinator", with_node_progress("coordinator", _coordinator))
 
     graph.set_entry_point("parallel_phase1")
     graph.add_edge("parallel_phase1", "parallel_phase2")
@@ -160,13 +172,22 @@ def get_career_graph():
     return _career_graph
 
 
-def run_career_advisory(profile: CareerProfile, *, rag_context: str = "") -> CareerRecommendation:
+def run_career_advisory(
+    profile: CareerProfile,
+    *,
+    rag_context: str = "",
+    imported_report_context: str = "",
+) -> CareerRecommendation:
     """对外入口：启动 LangGraph → 解析 JSON → 封装 CareerRecommendation。"""
     check_cancelled()
     graph = get_career_graph()
-    result = graph.invoke({"profile": profile.model_dump(), "rag_context": rag_context})
+    result = graph.invoke({
+        "profile": profile.model_dump(),
+        "rag_context": rag_context,
+        "imported_report_context": imported_report_context,
+    })
 
-    parsed = extract_json_block(result["final_report"])
+    parsed = result.get("structured_output") or {}
     insights = [
         AgentInsight(agent="aptitude_analyst", role="职业能力测评师", content=result["aptitude_analysis"]),
         AgentInsight(agent="psychology_advisor", role="职场心理顾问", content=result["psychology_analysis"]),

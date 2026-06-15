@@ -156,3 +156,36 @@ textarea { min-height: 80px; resize: vertical; }
 
 .user-info { font-size: 0.85rem; color: var(--muted); }
 .hidden { display: none !important; }
+
+.progress-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.progress-panel h3 { font-size: 0.95rem; margin-bottom: 12px; color: var(--muted); }
+.progress-steps { list-style: none; }
+.progress-steps li {
+  padding: 6px 0;
+  font-size: 0.9rem;
+  border-bottom: 1px dashed var(--border);
+}
+.progress-steps li:last-child { border-bottom: none; }
+.progress-running { color: #93c5fd; }
+.progress-done { color: #86efac; }
+.progress-info { color: var(--muted); }
+
+.import-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  margin-top: 8px;
+}
+.hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 12px; }
+.hint-warn { color: #fbbf24; font-size: 0.9rem; margin-top: 8px; }

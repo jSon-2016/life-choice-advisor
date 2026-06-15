@@ -8,7 +8,7 @@ Multi-Agent 人生选择顾问：**高考志愿** + **职业选择**，含前端
 |------|------|
 | **前端问卷** | `/`、`/gaokao`、`/career`、`/history` 静态页面 |
 | **Multi-Agent** | 并行专家 → 辩论 Supervisor → 总协调员 |
-| **RAG** | `data/knowledge/` 院校、专业、行业知识库 |
+| **RAG** | Hybrid 检索（关键词 + Chroma 持久化向量）→ RRF 融合 → DashScope Rerank → 低置信拒答 + 引用编号 |
 | **JWT** | 与 langchain-learn 相同测试账号 |
 | **MySQL** | `t_advisory_report` 持久化报告 |
 
@@ -59,8 +59,11 @@ uvicorn app.main:app --reload --port 8082
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
 | POST | `/api/auth/login` | 否 | 登录获取 JWT |
-| POST | `/api/gaokao/advise` | JWT | 高考志愿分析 + 存报告 |
+| POST | `/api/report-import/parse` | JWT | 上传 PDF/图片，解析测评报告 |
+| POST | `/api/gaokao/advise` | JWT | 高考志愿分析（body: `{ profile, imported_report_context? }`） |
+| POST | `/api/gaokao/advise/stream` | JWT | **SSE 流式**：实时进度 + 最终报告 |
 | POST | `/api/career/advise` | JWT | 职业选择分析 + 存报告 |
+| POST | `/api/career/advise/stream` | JWT | **SSE 流式**职业分析 |
 | GET | `/api/reports` | JWT | 历史报告列表 |
 | GET | `/api/reports/{id}` | JWT | 报告详情 |
 
@@ -90,6 +93,40 @@ life-choice-advisor/
 ```
 
 文件名即分类：`majors`、`schools`、`industries`。
+
+### RAG 流水线
+
+```
+多路召回（关键词 + Chroma 向量）
+  → RRF 融合
+  → DashScope Rerank（gte-rerank / qwen3-rerank）
+  → 相关度 < 阈值则拒答（不编造事实）
+  → 注入 Agent 上下文（带 [1][2] 引用）
+```
+
+向量索引持久化在 `data/chroma/`（知识库变更后自动重建）。  
+可在 `.env` 调整 `RAG_RERANK_THRESHOLD`（默认 0.35）、`RAG_RERANK_TOP_N` 等。
+
+### 测评报告导入（免填问卷）
+
+用户可直接上传 **PDF / 图片** 形式的心理或职业测评报告：
+
+```text
+PDF/图片 → 文字提取（PDF 文本 / Qwen-VL OCR）
+  → 结构感知分块（段落/表格）+ 重叠切分（非固定 500 字硬切）
+  → LLM 结构化抽取（维度得分、参考标准、MBTI 等）
+  → 注入 Agent 上下文 + 自动预填画像
+```
+
+- 前端：页面顶部「导入测评报告」，成功后隐藏心理测评表单
+- 若报告未含高考分数/省份，仅需补充少量基本信息
+- 配置：`REPORT_CHUNK_SIZE=1200`、`REPORT_CHUNK_OVERLAP=250`
+
+### 可观测与评测
+
+- **SSE 进度**：前端默认走 `/advise/stream`，实时显示 RAG / 各 Agent 阶段
+- **结构化日志**：`request_id`、Agent 耗时、Token 用量（见控制台）
+- **迷你 Eval**：`python eval/run_eval.py` 回归 RAG 召回与拒答
 
 ## 命令行 Demo（不存库）
 
